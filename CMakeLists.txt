@@ -19,6 +19,7 @@ set(CMAKE_CXX_FLAGS_DEBUG "-O0 -g")
 set(CMAKE_CXX_FLAGS_RELEASE "-O2 -DNDEBUG")
 
 find_package(spdlog CONFIG REQUIRED)
+find_package(Boost REQUIRED COMPONENTS system)
 
 # Add the `src` directory
 add_subdirectory(src)

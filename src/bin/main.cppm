@@ -1,55 +1,76 @@
 module;
 
-#include <format>
-#include <random>
 #include <spdlog/spdlog.h>
+
+#include <memory>
+#include <random>
 #include <vector>
 
-export module evosim:main;
+export module evosim.main;
 
 import evosim;
 
 using namespace evosim;
 
-typedef ScottDeJongBasins<2> sdb_basis;
-typedef sdb_basis::Mutation<0.1> sdb_mut;
+template <unsigned N> struct FitnessConfig {
+  FitnessFunction<N> &fitness_eval_fn;
+  FitnessFunction<N> &time_eval_fn;
+  std::function<Genome<N>(Rng &, FitnessFunction<N> &)> factory;
 
-int main(int argc, char **argv) {
+  FitnessConfig(FitnessFunction<N> &fitness_eval_fn, FitnessFunction<N> &time_eval_fn,
+                std::function<Genome<N>(Rng &, FitnessFunction<N> &)> factory)
+      : fitness_eval_fn(fitness_eval_fn), time_eval_fn(time_eval_fn), factory(factory) {}
+};
 
-  double negative_count = 0;
-  double positive_count = 0;
-  double A = 2.0;
+template <typename GC, unsigned N> void run_experiment(FitnessConfig<N> fc, int nthreads, int nruns, int ngenomes) {
+  std::vector<size_t> negative_count(nthreads, 0);
+  std::vector<size_t> positive_count(nthreads, 0);
+  std::vector<std::thread> threads;
 
-  for (double B : {2.0, 2.1, 2.2}) {
-    spdlog::info("A={}, B={}", A, B);
-    for (int i = 0; i < 100000; i++) {
-      std::vector<sdb_basis> initial_population;
-      std::function<sdb_basis(std::mt19937_64 &)> factory = [=](std::mt19937_64 &rng) { return sdb_basis(A, B, rng); };
-      Simulation<sdb_basis, sdb_mut, sdb_basis::Ord, sdb_basis::Ord> s(10, 10, 1000, factory);
-      s.run();
+  for (int t = 0; t < nthreads; t++) {
+    auto f = [&](int t) {
+      for (int i = 0; i < nruns / nthreads; i++) {
+        Simulation<GC, N> s(10, 10, 1000, fc.fitness_eval_fn, fc.time_eval_fn, fc.factory);
+        s.run();
 
-      sdb_basis &best = s.get_best_genome();
+        auto &best = s.get_best_genome();
+        bool converged = s.converged_to_global_best();
 
-      // spdlog::info("{}", best.to_string());
-
-      double pd = sdb_basis::positive_basin(A, B).distance(best);
-      double nd = sdb_basis::negative_basin(A, B).distance(best);
-
-      if (pd < nd) {
-        // spdlog::info("Converged to positive basin.");
-        positive_count += 1;
-      } else {
-        // spdlog::info("Converged to negative basin.");
-        negative_count += 1;
+        if (converged)
+          positive_count[t] += 1;
+        else
+          negative_count[t] += 1;
       }
-    }
+    };
 
-    double basin_a_percentage = positive_count / (positive_count + negative_count);
-    double basin_b_percentage = negative_count / (positive_count + negative_count);
-
-    spdlog::info("A prop: {}", basin_a_percentage);
-    spdlog::info("B prop: {}", basin_b_percentage);
+    threads.emplace_back(f, t);
   }
 
+  for (int i = 0; i < nthreads; i++)
+    threads[i].join();
+
+  double pc = 0.0, nc = 0.0;
+  for (int i = 0; i < nthreads; i++) {
+    pc += (double)positive_count[i];
+    nc += (double)negative_count[i];
+  }
+
+  double converged_prop = pc / (pc + nc);
+  double ci = wilson_confidence(pc, nc, 0.95);
+
+  spdlog::info("{:} / {:}     {:} R {:} I", fc.fitness_eval_fn.to_string(), GC().name, pc + nc, ngenomes);
+  spdlog::info("Converged % +/- 95% CI: {} +- {}", converged_prop * 100, ci);
+}
+
+const unsigned N = 8;
+int main(int argc, char **argv) {
+  double A = 10.0;
+  double B = A;
+  auto factory = [=](Rng &rng, FitnessFunction<N> &time_value) { return Genome(rng, time_value); };
+  auto fitness = std::make_unique<ScottDeJongBasins<N>>(A, B);
+  auto time = std::make_unique<ScottDeJongBasins<N>>(A, B);
+  FitnessConfig<N> fc{*fitness, *time, factory};
+
+  run_experiment<SDBGenomeConfig<N>, N>(fc, 10, 100000, 1000);
   return 0;
 }
