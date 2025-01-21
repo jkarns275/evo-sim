@@ -15,8 +15,8 @@ add_compile_options(-Wno-deprecated-declarations)
 add_compile_options(-fdiagnostics-color=always)
 add_compile_options(-v)
 
-set(CMAKE_CXX_FLAGS_DEBUG "-O0 -g")
-set(CMAKE_CXX_FLAGS_RELEASE "-O2 -DNDEBUG")
+set(CMAKE_CXX_FLAGS_DEBUG "-O0 -g -march=native -mtune=native")
+set(CMAKE_CXX_FLAGS_RELEASE "-O3 -DNDEBUG")
 
 find_package(spdlog CONFIG REQUIRED)
 find_package(Boost REQUIRED COMPONENTS system)

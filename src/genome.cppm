@@ -3,6 +3,8 @@ module;
 #include <compare>
 #include <concepts>
 #include <format>
+#include <limits>
+#include <optional>
 #include <random>
 #include <string>
 
@@ -11,19 +13,43 @@ import :util;
 import :function;
 
 export namespace evosim {
+template <typename T>
+concept ProbabilityDistribution = requires(T dist, std::minstd_rand0 &rng) {
+  typename T::result_type;
+  { dist(rng) } -> std::convertible_to<typename T::result_type>;
+};
 
 template <unsigned N> struct Genome {
-  double time_finished;
   std::array<double, N> x;
+  double time_finished;
+  std::optional<double> fitness = std::nullopt;
 
-  Genome(Rng &rng, const FitnessFunction<N> &time_value_fn) {
+  template <ProbabilityDistribution Dist> Genome(Rng &rng, const FitnessFunction<N> &time_value_fn, Dist d) {
     for (int i = 0; i < N; i++)
-      x[i] = std::uniform_real_distribution<double>(-0.01, 0.01)(rng);
+      x[i] = d(rng);
 
     time_finished = time_value_fn(x);
   }
 
+  Genome(const Genome<N> &other) : x(other.x), time_finished(other.time_finished), fitness(other.fitness) {}
+  Genome(Genome<N> &&other) : x(other.x), time_finished(other.time_finished), fitness(other.fitness) {}
+
+  Genome<N> &operator=(const Genome<N> &other) {
+    x = other.x;
+    time_finished = other.time_finished;
+    fitness = other.fitness;
+    return *this;
+  }
+
   virtual ~Genome() {}
+
+  void clear_fitness() { fitness = std::nullopt; }
+  double set_fitness(FitnessFunction<N> &fitness_function) {
+    if (!fitness.has_value())
+      fitness = fitness_function(x);
+
+    return *fitness;
+  }
 
   void set_finish_time(double t) { time_finished = t; }
   double get_finish_time() const { return time_finished; }
@@ -135,12 +161,21 @@ template <unsigned N> struct GenomeConfig {
   typedef Crossover<Genome, N> Crossover;
 };
 
-template <unsigned N> struct SDBGenomeConfig : public GenomeConfig<N> {
+template <unsigned N> struct SDBGenomeNoCOConfig : public GenomeConfig<N> {
   const std::string name = "Gaussian Mutation; No-Op Crossover";
 
   typedef Genome<N> Genome;
   typedef GaussianMutation<Genome, N> Mutation;
   typedef NopCrossover<Genome, N> Crossover;
+};
+
+template <unsigned N> struct SDBGenomeConfig : public GenomeConfig<N> {
+  const std::string name = "Gaussian Mutation; Two-Point Crossover";
+
+  typedef Genome<N> Genome;
+  typedef GaussianMutation<Genome, N> Mutation;
+  typedef TwoPointCrossover<Genome, N> Crossover;
+  // typedef NopCrossover<Genome, N> Crossover;
 };
 
 }; // namespace evosim
