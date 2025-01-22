@@ -5,6 +5,7 @@ module;
 #include <algorithm>
 #include <concepts>
 #include <functional>
+#include <memory>
 #include <queue>
 #include <random>
 #include <type_traits>
@@ -188,7 +189,7 @@ struct Simulation {
   /// by removing a genome from the pending evaluation queue, then inserting that genome in the population using
   /// tournamant selection. Subsequently, a new random genome is selected and mutated -- this child genome is
   /// subsequently added into the evaluation queue.
-  void step() {
+  virtual void step() {
     assert(pending_evaluation.size() == np);
 
     // Get most recently evaluated genome, and insert it if it passes tournamant selection.
@@ -319,4 +320,51 @@ public:
   Genome &get_best_genome() { return population[0]; }
 };
 
+template <typename GC, unsigned N>
+  requires std::derived_from<GC, GenomeConfig<N>>
+struct SimulationWithLogging : public Simulation<GC, N> {
+  using typename Simulation<GC, N>::Genome;
+  using typename Simulation<GC, N>::Mutation;
+  using typename Simulation<GC, N>::Crossover;
+
+  std::shared_ptr<spdlog::logger> logger;
+
+  SimulationWithLogging(uint32_t pop_size, uint32_t np, int64_t max_steps, bool use_sweet,
+                        FitnessFunction<N> *fitness_value_fn, FitnessFunction<N> *time_value_fn,
+                        std::function<typename Simulation<GC, N>::Genome(Rng &, FitnessFunction<N> &)> factory,
+                        std::shared_ptr<spdlog::logger> &logger,
+                        InitType init_type = init_type::SynchronousGenerations{0})
+      : Simulation<GC, N>(pop_size, np, max_steps, use_sweet, fitness_value_fn, time_value_fn, factory, init_type),
+        logger(logger) {}
+
+  void logged_reproduce(double current_time) {
+    auto child = this->breed();
+
+    // Set that child's finish time to be equal to the parents finish time added to its own evaluation time.
+    // spdlog::info("Time value = {}", time_value_fn(child));
+    child.set_finish_time(current_time + (*this->time_value_fn)(child.x));
+    logger->info("{:.4f},{:.4f},{:.4f},{:.4f}", child.x[0], child.x[1], current_time, (*this->time_value_fn)(child.x));
+
+    auto [min, max] = this->fitness_value_fn->domain();
+    child.bound(min, max);
+
+    // Add to execution queue.
+    this->pending_evaluation.emplace(std::move(child));
+  }
+
+  void step() override {
+    assert(this->pending_evaluation.size() == np);
+
+    // Get most recently evaluated genome, and insert it if it passes tournamant selection.
+    auto element = std::move(this->pending_evaluation.top());
+    this->pending_evaluation.pop();
+
+    // Tournamant selection at index.
+    this->try_insert(element);
+
+    logged_reproduce(element.get_finish_time());
+
+    this->step_count += 1;
+  }
+};
 }; // namespace evosim

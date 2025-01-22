@@ -23,10 +23,6 @@ int main(int argc, char **argv) {
 
   initialize_logger();
 
-  auto csv_logger = spdlog::basic_logger_st("experiment_output_csv", "results.csv", true);
-  csv_logger->set_pattern("%v");
-  csv_logger->info("Experiment Name, Converged Percentage, 95% CI, NSim, NGenomes");
-
   const int N_REPEATS = 100000;
 
   // Experiment 1: Converging to Fast Optimum on Two-Basin Objective
@@ -43,15 +39,67 @@ int main(int argc, char **argv) {
   const int NUMBER_GENOMES = 1000;
 
   const int NUMBER_THREADS = 10;
-  const int NUMBER_RUNS = 100'000;
+  const int NUMBER_RUNS = 1'0'000;
 
   const InitType INIT_TYPE = init_type::Simulated{};
+  spdlog::info("-------------------------------------------");
+  spdlog::info("Reproducibility Experiments: Flat Fitness Landscape");
+  spdlog::info("-------------------------------------------");
+  {
+    const int N = 2;
+    double A = 100.0;
+    double B = 100.0;
+
+    auto csv_logger = spdlog::basic_logger_st("repro_flat_fitness", "repro_flat_fitness.csv", true);
+    csv_logger->set_pattern("%v");
+    csv_logger->info("x0,x1,Duration");
+
+    auto factory = [=](Rng &rng, FitnessFunction<N> &time_value) {
+      return Genome(rng, time_value, std::normal_distribution<double>{0.0, 1.0});
+    };
+    auto fitness = std::unique_ptr<FitnessFunction<N>>(new Flat<N>());
+    auto time = std::unique_ptr<FitnessFunction<N>>(new ScottDeJongBasins<N>(A, -B));
+
+    for (int i = 0; i < 5000; i++) {
+      Simulation<SDBGenomeNoCOConfig<2>, 2> s(POP_SIZE, 10, 100, false, fitness.get(), time.get(), factory, INIT_TYPE);
+      s.run();
+
+      const Genome<N> &g = s.select();
+      csv_logger->info("{:.4f},{:.4f},{:.4f}", g.x[0], g.x[1], (*time)(g.x));
+    }
+  }
+
+  spdlog::info("-------------------------------------------");
+  spdlog::info("Reproducibility Experiments: Wall-clock time Evaluation Sequence ");
+  spdlog::info("-------------------------------------------");
+  {
+    const int N = 2;
+    double A = 100.0;
+    double B = 100.0;
+
+    auto csv_logger = spdlog::basic_logger_st("repro_wall_clock_time_seq", "repro_wall_clock_seq.csv", true);
+    csv_logger->set_pattern("%v");
+    csv_logger->info("x0,x1,Start,Duration");
+
+    auto factory = [=](Rng &rng, FitnessFunction<N> &time_value) {
+      return Genome(rng, time_value, std::normal_distribution<double>{0.0, 1.0});
+    };
+    auto fitness = std::unique_ptr<FitnessFunction<N>>(new ScottDeJongBasins<N>(A, B));
+    auto time = std::unique_ptr<FitnessFunction<N>>(new ScottDeJongBasins<N>(-A, B));
+
+    SimulationWithLogging<SDBGenomeNoCOConfig<2>, 2> s(POP_SIZE, 32, 1000, false, fitness.get(), time.get(), factory,
+                                                       csv_logger, INIT_TYPE);
+    s.run();
+  }
 
   spdlog::info("-------------------------------------------");
   spdlog::info("Reproducibility Experiments: A = B");
   spdlog::info("-------------------------------------------");
-
   {
+    auto csv_logger = spdlog::basic_logger_st("repro_results_a_eq_b", "repro_a_eq_b.csv", true);
+    csv_logger->set_pattern("%v");
+    csv_logger->info("Experiment Name,Converged Percentage,95% CI");
+
     const double A = 10.0;
     const double B = A;
 
@@ -73,7 +121,8 @@ int main(int argc, char **argv) {
       FitnessFunction<N> *time = time_functions[i].get();
       ExpConfig<N> fc{NUMBER_THREADS, NUMBER_RUNS, *fitness, *time, factory};
 
-      run_experiment<SDBGenomeConfig<N>, N>(fc, sc, *csv_logger);
+      auto [prop, ci] = run_experiment<SDBGenomeConfig<N>, N>(fc, sc, *csv_logger);
+      csv_logger->info("{},{:.4f},{:.4f}", time->to_string(), prop, ci);
     }
   }
 
@@ -81,6 +130,10 @@ int main(int argc, char **argv) {
   spdlog::info("Reproducibility Experiments: B = 1.5A");
   spdlog::info("-------------------------------------------");
   {
+    auto csv_logger = spdlog::basic_logger_st("repro_results_b_gt_a", "repro_b_gt_a.csv", true);
+    csv_logger->set_pattern("%v");
+    csv_logger->info("Experiment Name,Converged Percentage,95% CI");
+
     const double A = 10.0;
     const double B = 1.5 * A;
 
@@ -103,7 +156,8 @@ int main(int argc, char **argv) {
       FitnessFunction<N> *time = time_functions[i].get();
       ExpConfig<N> fc{NUMBER_THREADS, NUMBER_RUNS, *fitness, *time, factory};
 
-      run_experiment<SDBGenomeConfig<N>, N>(fc, sc, *csv_logger);
+      auto [prop, ci] = run_experiment<SDBGenomeConfig<N>, N>(fc, sc, *csv_logger);
+      csv_logger->info("{},{:.4f},{:.4f}", time->to_string(), prop, ci);
     }
   }
 
@@ -111,6 +165,10 @@ int main(int argc, char **argv) {
   spdlog::info("Extended Experiments: A = B; C = xD for x in 1...10");
   spdlog::info("-------------------------------------------");
   {
+    auto csv_logger = spdlog::basic_logger_st("extended_c_xd", "extended_c_xd.csv", true);
+    csv_logger->set_pattern("%v");
+    csv_logger->info("Experiment Name,Converged Percentage,95% CI");
+
     const double A = 10.0;
     const double B = A;
 
@@ -119,10 +177,10 @@ int main(int argc, char **argv) {
 
     const double D_MIN = 1.0;
     const double D_MAX = 10.0;
-    const int GRID_SIZE = 100;
-    const double STEP_SIZE = (D_MAX - D_MIN) / STEP_SIZE;
+    const int GRID_SIZE = 10;
+    const double STEP_SIZE = (D_MAX - D_MIN) / GRID_SIZE;
 
-    for (int i = 0; i < GRID_SIZE; i++) {
+    for (int i = 0; i <= GRID_SIZE; i++) {
       double d = D_MIN + i * STEP_SIZE;
       time_functions.emplace_back(std::unique_ptr<FitnessFunction<N>>(new ScottDeJongBasins<N>(d * A, B)));
     }
@@ -138,7 +196,8 @@ int main(int argc, char **argv) {
       FitnessFunction<N> *time = time_functions[i].get();
       ExpConfig<N> fc{NUMBER_THREADS, NUMBER_RUNS, *fitness, *time, factory};
 
-      run_experiment<SDBGenomeConfig<N>, N>(fc, sc, *csv_logger);
+      auto [prop, ci] = run_experiment<SDBGenomeConfig<N>, N>(fc, sc, *csv_logger);
+      csv_logger->info("{},{:.4f},{:.4f}", time->to_string(), prop, ci);
     }
   }
 
@@ -146,6 +205,10 @@ int main(int argc, char **argv) {
   spdlog::info("Extended Experiments: A = B; C = -xD for x in 1...10");
   spdlog::info("-------------------------------------------");
   {
+    auto csv_logger = spdlog::basic_logger_st("extended_c_neg_xd", "extended_c_neg_xd.csv", true);
+    csv_logger->set_pattern("%v");
+    csv_logger->info("Experiment Name,Converged Percentage,95% CI");
+
     const double A = 10.0;
     const double B = A;
 
@@ -154,10 +217,10 @@ int main(int argc, char **argv) {
 
     const double D_MIN = 1.0;
     const double D_MAX = 10.0;
-    const int GRID_SIZE = 100;
-    const double STEP_SIZE = (D_MAX - D_MIN) / STEP_SIZE;
+    const int GRID_SIZE = 10;
+    const double STEP_SIZE = (D_MAX - D_MIN) / GRID_SIZE;
 
-    for (int i = 0; i < GRID_SIZE; i++) {
+    for (int i = 0; i <= GRID_SIZE; i++) {
       double d = D_MIN + i * STEP_SIZE;
       time_functions.emplace_back(std::unique_ptr<FitnessFunction<N>>(new ScottDeJongBasins<N>(-d * A, B)));
     }
@@ -173,7 +236,8 @@ int main(int argc, char **argv) {
       FitnessFunction<N> *time = time_functions[i].get();
       ExpConfig<N> fc{NUMBER_THREADS, NUMBER_RUNS, *fitness, *time, factory};
 
-      run_experiment<SDBGenomeConfig<N>, N>(fc, sc, *csv_logger);
+      auto [prop, ci] = run_experiment<SDBGenomeConfig<N>, N>(fc, sc, *csv_logger);
+      csv_logger->info("{},{:.4f},{:.4f}", time->to_string(), prop, ci);
     }
   }
   return 0;

@@ -77,7 +77,7 @@ template <unsigned N> struct ScottDeJongBasins : public FitnessFunction<N> {
     return distance(go, x) < distance(lo, x);
   }
 
-  std::string to_string() const override { return std::format("Scott-DeJong( {:.2f}, {:.2f} )", A, B); }
+  std::string to_string() const override { return std::format("Scott-DeJong( {:.2f}; {:.2f} )", A, B); }
 };
 
 template <unsigned N> struct Schwefel : public FitnessFunction<N> {
@@ -148,7 +148,7 @@ template <unsigned N> struct SphericalGaussian : public FitnessFunction<N> {
   std::pair<double, double> domain() const override { return {-INFINITY, INFINITY}; }
 
   std::string to_string() const override {
-    return std::format("Spherical-Gaussian( mu = ..., {:.2f} )", dist[0].scale());
+    return std::format("Spherical-Gaussian( mu = ...; {:.2f} )", dist[0].scale());
   }
 };
 
@@ -180,7 +180,7 @@ template <unsigned N> struct InvSphericalGaussian : public FitnessFunction<N> {
   std::pair<double, double> domain() const override { return {-INFINITY, INFINITY}; }
 
   std::string to_string() const override {
-    return std::format("Inv-Spherical-Gaussian( {:.2f}, {:.2f} )", dist.mean(), dist.scale());
+    return std::format("Inv-Spherical-Gaussian( {:.2f}; {:.2f} )", dist.mean(), dist.scale());
   }
 };
 }; // namespace evosim

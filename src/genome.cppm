@@ -97,7 +97,7 @@ struct Mutation {
 
 /// Template abstract class for a Crossover operation over Genome<N>.
 template <typename G, unsigned N>
-  requires std::derived_from<G, Genome<N>> && (N > 3)
+  requires std::derived_from<G, Genome<N>>
 class Crossover {
   virtual G operator()(const G &p0, const G &p1, Rng &generator) const = 0;
 };
