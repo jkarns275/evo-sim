@@ -13,7 +13,7 @@ import evosim;
 
 using namespace evosim;
 
-const unsigned N = 8;
+const unsigned N = 10;
 
 /// This binary runs a series of experiments that represent a superset of the experiments run in "Evaluation-Time Bias
 /// in Asynchronous Evolutionary Algorithms" by Eric O. Scott and Kenneth A. De Jong.
@@ -39,7 +39,7 @@ int main(int argc, char **argv) {
   const int NUMBER_GENOMES = 1000;
 
   const int NUMBER_THREADS = 10;
-  const int NUMBER_RUNS = 1'0'000;
+  const int NUMBER_RUNS = 1'000'00;
 
   const InitType INIT_TYPE = init_type::Simulated{};
   spdlog::info("-------------------------------------------");
@@ -47,8 +47,8 @@ int main(int argc, char **argv) {
   spdlog::info("-------------------------------------------");
   {
     const int N = 2;
-    double A = 100.0;
-    double B = 100.0;
+    double A = 10.0;
+    double B = 15.0;
 
     auto csv_logger = spdlog::basic_logger_st("repro_flat_fitness", "repro_flat_fitness.csv", true);
     csv_logger->set_pattern("%v");
@@ -106,6 +106,7 @@ int main(int argc, char **argv) {
     auto fitness = std::make_unique<ScottDeJongBasins<N>>(A, B);
     std::vector<std::unique_ptr<FitnessFunction<N>>> time_functions;
 
+    time_functions.emplace_back(std::unique_ptr<FitnessFunction<N>>(new ScottDeJongBasins<N>(-A, B)));
     time_functions.emplace_back(std::unique_ptr<FitnessFunction<N>>(new Flat<N>()));
     time_functions.emplace_back(std::unique_ptr<FitnessFunction<N>>(new ScottDeJongBasins<N>(A, B)));
     time_functions.emplace_back(std::unique_ptr<FitnessFunction<N>>(new ScottDeJongBasins<N>(A, -B)));
@@ -140,9 +141,9 @@ int main(int argc, char **argv) {
     auto fitness = std::make_unique<ScottDeJongBasins<N>>(A, B);
     std::vector<std::unique_ptr<FitnessFunction<N>>> time_functions;
 
+    time_functions.emplace_back(std::unique_ptr<FitnessFunction<N>>(new ScottDeJongBasins<N>(-A, B)));
     time_functions.emplace_back(std::unique_ptr<FitnessFunction<N>>(new Flat<N>()));
     time_functions.emplace_back(std::unique_ptr<FitnessFunction<N>>(new ScottDeJongBasins<N>(A, B)));
-    time_functions.emplace_back(std::unique_ptr<FitnessFunction<N>>(new ScottDeJongBasins<N>(-A, B)));
     time_functions.emplace_back(std::unique_ptr<FitnessFunction<N>>(new ScottDeJongBasins<N>(A, -B)));
 
     SimulationConfig sc{POP_SIZE, NUMBER_SIMULATED_PROCESSORS, NUMBER_GENOMES, INIT_TYPE, false};
@@ -161,6 +162,77 @@ int main(int argc, char **argv) {
     }
   }
 
+  spdlog::info("-------------------------------------------");
+  spdlog::info("Extended Experiments: A = B, no crossover");
+  spdlog::info("-------------------------------------------");
+  {
+    auto csv_logger = spdlog::basic_logger_st("repro_results_a_eq_b_no_co", "repro_a_eq_b_no_co.csv", true);
+    csv_logger->set_pattern("%v");
+    csv_logger->info("Experiment Name,Converged Percentage,95% CI");
+
+    const double A = 10.0;
+    const double B = A;
+
+    auto fitness = std::make_unique<ScottDeJongBasins<N>>(A, B);
+    std::vector<std::unique_ptr<FitnessFunction<N>>> time_functions;
+
+    time_functions.emplace_back(std::unique_ptr<FitnessFunction<N>>(new ScottDeJongBasins<N>(-A, B)));
+    time_functions.emplace_back(std::unique_ptr<FitnessFunction<N>>(new Flat<N>()));
+    time_functions.emplace_back(std::unique_ptr<FitnessFunction<N>>(new ScottDeJongBasins<N>(A, B)));
+    time_functions.emplace_back(std::unique_ptr<FitnessFunction<N>>(new ScottDeJongBasins<N>(A, -B)));
+
+    SimulationConfig sc{POP_SIZE, NUMBER_SIMULATED_PROCESSORS, NUMBER_GENOMES, INIT_TYPE, false};
+
+    // Genomes are initialized at 0^N at the start of the search.
+    auto factory = [=](Rng &rng, FitnessFunction<N> &time_value) {
+      return Genome(rng, time_value, std::normal_distribution<double>{0.0, 1.0});
+    };
+
+    for (int i = 0; i < time_functions.size(); i++) {
+      FitnessFunction<N> *time = time_functions[i].get();
+      ExpConfig<N> fc{NUMBER_THREADS, NUMBER_RUNS, *fitness, *time, factory};
+
+      auto [prop, ci] = run_experiment<SDBGenomeNoCOConfig<N>, N>(fc, sc, *csv_logger);
+      csv_logger->info("{},{:.4f},{:.4f}", time->to_string(), prop, ci);
+    }
+  }
+
+  spdlog::info("-------------------------------------------");
+  spdlog::info("Extended Experiments: B = 1.5A, no crossover");
+  spdlog::info("-------------------------------------------");
+  {
+    auto csv_logger = spdlog::basic_logger_st("repro_results_b_gt_a_no_co", "repro_b_gt_a_no_co.csv", true);
+    csv_logger->set_pattern("%v");
+    csv_logger->info("Experiment Name,Converged Percentage,95% CI");
+
+    const double A = 10.0;
+    const double B = 1.5 * A;
+
+    auto fitness = std::make_unique<ScottDeJongBasins<N>>(A, B);
+    std::vector<std::unique_ptr<FitnessFunction<N>>> time_functions;
+
+    time_functions.emplace_back(std::unique_ptr<FitnessFunction<N>>(new ScottDeJongBasins<N>(-A, B)));
+    time_functions.emplace_back(std::unique_ptr<FitnessFunction<N>>(new Flat<N>()));
+    time_functions.emplace_back(std::unique_ptr<FitnessFunction<N>>(new ScottDeJongBasins<N>(A, B)));
+    time_functions.emplace_back(std::unique_ptr<FitnessFunction<N>>(new ScottDeJongBasins<N>(A, -B)));
+
+    SimulationConfig sc{POP_SIZE, NUMBER_SIMULATED_PROCESSORS, NUMBER_GENOMES, INIT_TYPE, false};
+
+    // Genomes are initialized at 0^N at the start of the search.
+    auto factory = [=](Rng &rng, FitnessFunction<N> &time_value) {
+      return Genome(rng, time_value, std::normal_distribution<double>{0, 1});
+    };
+
+    for (int i = 0; i < time_functions.size(); i++) {
+      FitnessFunction<N> *time = time_functions[i].get();
+      ExpConfig<N> fc{NUMBER_THREADS, NUMBER_RUNS, *fitness, *time, factory};
+
+      auto [prop, ci] = run_experiment<SDBGenomeNoCOConfig<N>, N>(fc, sc, *csv_logger);
+      csv_logger->info("{},{:.4f},{:.4f}", time->to_string(), prop, ci);
+    }
+  }
+
+  /*
   spdlog::info("-------------------------------------------");
   spdlog::info("Extended Experiments: A = B; C = xD for x in 1...10");
   spdlog::info("-------------------------------------------");
@@ -240,5 +312,6 @@ int main(int argc, char **argv) {
       csv_logger->info("{},{:.4f},{:.4f}", time->to_string(), prop, ci);
     }
   }
+  */
   return 0;
 }

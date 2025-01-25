@@ -14,6 +14,45 @@ import evosim;
 using namespace evosim;
 
 const unsigned N = 8;
+const int POP_SIZE = 10;
+const int NUMBER_SIMULATED_PROCESSORS = 10;
+const int NUMBER_GENOMES = 1000;
+
+const int NUMBER_THREADS = 10;
+const int NUMBER_RUNS = 1'000'00;
+template <class GC> void modulation_experiment(double A, double B, std::string logger_name) {
+  auto csv_logger = spdlog::basic_logger_st(logger_name, logger_name + ".csv", true);
+  csv_logger->set_pattern("%v");
+  csv_logger->info("Variance,Converged Percentage,95% CI");
+
+  const InitType INIT_TYPE = init_type::Simulated{};
+
+  auto fitness = std::make_unique<ScottDeJongBasins<N>>(A, B);
+  std::vector<std::unique_ptr<FitnessFunction<N>>> time_functions;
+
+  // time_functions.emplace_back(std::unique_ptr<FitnessFunction<N>>(new Flat<N>()));
+  // time_functions.emplace_back(std::unique_ptr<FitnessFunction<N>>(new ScottDeJongBasins<N>(A, B)));
+  time_functions.emplace_back(std::unique_ptr<FitnessFunction<N>>(new ScottDeJongBasins<N>(A, -B)));
+
+  SimulationConfig sc{POP_SIZE, NUMBER_SIMULATED_PROCESSORS, NUMBER_GENOMES, INIT_TYPE, false};
+
+  // Genomes are initialized at 0^N at the start of the search.
+
+  for (int i = 0; i < time_functions.size(); i++) {
+    for (int u = 0; u < 15; u++) {
+      auto factory = [=](Rng &rng, FitnessFunction<N> &time_value) {
+        return Genome(rng, time_value, std::normal_distribution<double>{0.0, std::sqrt((double)u)});
+      };
+      FitnessFunction<N> *time = time_functions[i].get();
+      ExpConfig<N> fc{NUMBER_THREADS, NUMBER_RUNS, *fitness, *time, factory};
+      spdlog::info("Initialization Distribution: N({}, {:.4f})", 0.0, std::sqrt((double)u));
+      auto [p, ci] = run_experiment<GC, N>(fc, sc, *csv_logger);
+      if (B > A)
+        p = 100.0 - p;
+      csv_logger->info("{:.4f},{:.4f},{:.4f}", (double)u, p, ci);
+    }
+  }
+}
 
 /// This binary runs a series of experiments that represent a superset of the experiments run in "Evaluation-Time Bias
 /// in Asynchronous Evolutionary Algorithms" by Eric O. Scott and Kenneth A. De Jong.
@@ -22,10 +61,6 @@ const unsigned N = 8;
 int main(int argc, char **argv) {
 
   initialize_logger();
-
-  auto csv_logger = spdlog::basic_logger_st("experiment_output_csv", "results.csv", true);
-  csv_logger->set_pattern("%v");
-  csv_logger->info("Experiment Name, Converged Percentage, 95% CI, NSim, NGenomes");
 
   // Experiment 1: Converging to Fast Optimum on Two-Basin Objective
   //
@@ -36,77 +71,25 @@ int main(int argc, char **argv) {
   // - Constant-Eval Time
   // - Eval Time = Fitness
   // - A fast, B slow.
-  const int POP_SIZE = 10;
-  const int NUMBER_SIMULATED_PROCESSORS = 10;
-  const int NUMBER_GENOMES = 1000;
-
-  const int NUMBER_THREADS = 10;
-  const int NUMBER_RUNS = 1'000'00;
 
   spdlog::info("-------------------------------------------");
-  spdlog::info("Modulation Experiments: A = B");
+  spdlog::info("Modulation Experiments: A = B with Crossover");
   spdlog::info("-------------------------------------------");
+  modulation_experiment<SDBGenomeConfig<N>>(10, 10, "modulate_a_eq_b_co");
 
-  {
-    const double A = 10.0;
-    const double B = A;
+  spdlog::info("-------------------------------------------");
+  spdlog::info("Modulation Experiments: A = B with Crossover");
+  spdlog::info("-------------------------------------------");
+  modulation_experiment<SDBGenomeNoCOConfig<N>>(10, 10, "modulate_a_eq_b_no_co");
 
-    const InitType INIT_TYPE = init_type::Simulated{};
+  spdlog::info("-------------------------------------------");
+  spdlog::info("Modulation Experiments: 1.5A = B with Crossover");
+  spdlog::info("-------------------------------------------");
+  modulation_experiment<SDBGenomeConfig<N>>(10, 15, "modulate_a_lt_b_co");
 
-    auto fitness = std::make_unique<ScottDeJongBasins<N>>(A, B);
-    std::vector<std::unique_ptr<FitnessFunction<N>>> time_functions;
-
-    // time_functions.emplace_back(std::unique_ptr<FitnessFunction<N>>(new Flat<N>()));
-    // time_functions.emplace_back(std::unique_ptr<FitnessFunction<N>>(new ScottDeJongBasins<N>(A, B)));
-    time_functions.emplace_back(std::unique_ptr<FitnessFunction<N>>(new ScottDeJongBasins<N>(A, -B)));
-
-    SimulationConfig sc{POP_SIZE, NUMBER_SIMULATED_PROCESSORS, NUMBER_GENOMES, INIT_TYPE, false};
-
-    // Genomes are initialized at 0^N at the start of the search.
-
-    for (int i = 0; i < time_functions.size(); i++) {
-      for (int u = 0; u < 11; u++) {
-        auto factory = [=](Rng &rng, FitnessFunction<N> &time_value) {
-          return Genome(rng, time_value, std::uniform_real_distribution<double>{(double)-u, (double)u});
-        };
-        FitnessFunction<N> *time = time_functions[i].get();
-        ExpConfig<N> fc{NUMBER_THREADS, NUMBER_RUNS, *fitness, *time, factory};
-        spdlog::info("Range: [-{}, {}]", u * 1.0, u * 1.0);
-        run_experiment<SDBGenomeConfig<N>, N>(fc, sc, *csv_logger);
-      }
-    }
-  }
-
-  // spdlog::info("-------------------------------------------");
-  // spdlog::info("Modulation Experiments: B = 1.5A");
-  // spdlog::info("-------------------------------------------");
-
-  // {
-  //   const double A = 10.0;
-  //   const double B = 1.5 * A;
-
-  //   const InitType INIT_TYPE = init_type::Simulated{};
-
-  //   auto fitness = std::make_unique<ScottDeJongBasins<N>>(A, B);
-  //   std::vector<std::unique_ptr<FitnessFunction<N>>> time_functions;
-
-  //   time_functions.emplace_back(std::unique_ptr<FitnessFunction<N>>(new Flat<N>()));
-  //   time_functions.emplace_back(std::unique_ptr<FitnessFunction<N>>(new ScottDeJongBasins<N>(A, B)));
-  //   time_functions.emplace_back(std::unique_ptr<FitnessFunction<N>>(new ScottDeJongBasins<N>(A, -B)));
-
-  //   SimulationConfig sc{POP_SIZE, NUMBER_SIMULATED_PROCESSORS, NUMBER_GENOMES, INIT_TYPE, false};
-
-  //   // Genomes are initialized at 0^N at the start of the search.
-
-  //   for (int i = 0; i < time_functions.size(); i++) {
-  //     for (int u = 0; u < 11; u++) {
-  //       auto factory = [=](Rng &rng, FitnessFunction<N> &time_value) { return Genome(rng, time_value, 1.0 * u); };
-  //       FitnessFunction<N> *time = time_functions[i].get();
-  //       ExpConfig<N> fc{NUMBER_THREADS, NUMBER_RUNS, *fitness, *time, factory};
-
-  //       run_experiment<SDBGenomeConfig<N>, N>(fc, sc, *csv_logger);
-  //     }
-  //   }
-  // }
+  spdlog::info("-------------------------------------------");
+  spdlog::info("Modulation Experiments: 1.5A = B with Crossover");
+  spdlog::info("-------------------------------------------");
+  modulation_experiment<SDBGenomeNoCOConfig<N>>(10, 15, "modulate_a_lt_b_no_co");
   return 0;
 }
