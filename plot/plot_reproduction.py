@@ -9,6 +9,9 @@ import matplotlib
 from matplotlib.backends.backend_pgf import FigureCanvasPgf
 matplotlib.backend_bases.register_backend("pdf", FigureCanvasPgf)
 
+from plot_config import colors
+from plot_config import *
+
 repro_a_eq_b = "repro_a_eq_b.csv"
 repro_b_gt_a = "repro_b_gt_a.csv"
 repro_a_eq_b_no_co = "repro_a_eq_b_no_co.csv"
@@ -27,21 +30,18 @@ repro_name_map = {
 extended_c_xd = "extended_c_xd.csv"
 extended_c_neg_xd = "extended_c_neg_xd.csv"
 
-AX_LABEL_SIZE = 16
-TITLE_SIZE = 18
-TICK_LABEL_SIZE = 14
-
 def make_bar_chart(csv_file: str, plot_title: str, x_label: str, xticks: dict, y_label: str, output_file: str, inverse: bool = False) -> None:
     fig, ax = plt.subplots(figsize=(8, 6))
 
-    df = pd.read_csv(csv_file)
+    df = pd.read_csv(f"results/{csv_file}")
     
     converged_percentage = df["Converged Percentage"]
     if inverse:
         converged_percentage = 100.0 - converged_percentage
     confidence_interval = df["95% CI"]
     
-    ax.bar(df.index, converged_percentage, yerr=confidence_interval, capsize=5, color="skyblue", edgecolor="black")
+    bars = ax.bar(df.index, converged_percentage, yerr=confidence_interval, capsize=5, color=colors, edgecolor="black")
+    ax.bar_label(bars, fmt="%.0f")
     
     ax.set_xlabel(x_label, fontsize=AX_LABEL_SIZE)
     ax.set_ylabel(y_label, fontsize=AX_LABEL_SIZE)
@@ -53,14 +53,14 @@ def make_bar_chart(csv_file: str, plot_title: str, x_label: str, xticks: dict, y
     plt.savefig(output_file)
     plt.close(fig)
 
-make_bar_chart(repro_a_eq_b, "p(R = 1) with A = B", "", repro_name_map, "p(R = 1)", "plots/repro_a_eq_b.pdf")
-make_bar_chart(repro_b_gt_a, "p(R = 1) with B = 1.5A", "", repro_name_map, "p(R = 1)", "plots/repro_b_gt_a.pdf", True)
-make_bar_chart(repro_a_eq_b_no_co, "p(R = 1) with A = B; No Crossover", "", repro_name_map, "p(R = 1)", "plots/repro_a_eq_b_no_co.pdf")
-make_bar_chart(repro_b_gt_a_no_co, "p(R = 1) with B = 1.5A; No Crossover", "", repro_name_map, "p(R = 1)", "plots/repro_b_gt_a_no_co.pdf", True)
+make_bar_chart(repro_a_eq_b, "p(R = 1) with A = B", "", repro_name_map, "p(R = 1)", "figures/repro_a_eq_b.pdf")
+make_bar_chart(repro_b_gt_a, "p(R = 1) with B = 1.5A", "", repro_name_map, "p(R = 1)", "figures/repro_b_gt_a.pdf", True)
+make_bar_chart(repro_a_eq_b_no_co, "p(R = 1) with A = B; No Crossover", "", repro_name_map, "p(R = 1)", "figures/repro_a_eq_b_no_co.pdf")
+make_bar_chart(repro_b_gt_a_no_co, "p(R = 1) with B = 1.5A; No Crossover", "", repro_name_map, "p(R = 1)", "figures/repro_b_gt_a_no_co.pdf", True)
 
 def plot_flat_fitness_scatter(output_file):
     fig, ax = plt.subplots(figsize=(8, 6))
-    df = pd.read_csv("repro_flat_fitness.csv")
+    df = pd.read_csv("results/repro_flat_fitness.csv")
     
     x0 = np.array(df["x0"])
     x1 = np.array(df["x1"])
@@ -90,7 +90,7 @@ def plot_flat_fitness_scatter(output_file):
     fig.savefig(output_file)
     plt.close(fig)
 
-plot_flat_fitness_scatter("plots/repro_flat_fitness.pdf")
+plot_flat_fitness_scatter("figures/repro_flat_fitness.pdf")
 
 def plot_wall_clock(input_file, output_file):
     df = pd.read_csv(input_file)
@@ -120,5 +120,5 @@ def plot_wall_clock(input_file, output_file):
     fig.savefig(output_file)
     plt.close(fig)
 
-plot_wall_clock("repro_wall_clock_seq.csv", "plots/repro_wall_clock_seq.pdf")
-plot_wall_clock("repro_wall_clock_seq_SELECTED.csv", "plots/repro_wall_clock_seq_SELECTED.pdf")
+plot_wall_clock("results/repro_wall_clock_seq.csv", "figures/repro_wall_clock_seq.pdf")
+plot_wall_clock("results/repro_wall_clock_seq_SELECTED.csv", "figures/repro_wall_clock_seq_SELECTED.pdf")

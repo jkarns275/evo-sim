@@ -13,15 +13,15 @@ import evosim;
 
 using namespace evosim;
 
-const unsigned N = 8;
+const unsigned N = 10;
 const int POP_SIZE = 10;
 const int NUMBER_SIMULATED_PROCESSORS = 10;
 const int NUMBER_GENOMES = 1000;
 
 const int NUMBER_THREADS = 10;
-const int NUMBER_RUNS = 1'000'00;
+const int NUMBER_RUNS = 1'000'000;
 template <class GC> void modulation_experiment(double A, double B, std::string logger_name) {
-  auto csv_logger = spdlog::basic_logger_st(logger_name, logger_name + ".csv", true);
+  auto csv_logger = spdlog::basic_logger_st(logger_name, "results/" + logger_name + ".csv", true);
   csv_logger->set_pattern("%v");
   csv_logger->info("Variance,Converged Percentage,95% CI");
 
@@ -47,8 +47,6 @@ template <class GC> void modulation_experiment(double A, double B, std::string l
       ExpConfig<N> fc{NUMBER_THREADS, NUMBER_RUNS, *fitness, *time, factory};
       spdlog::info("Initialization Distribution: N({}, {:.4f})", 0.0, std::sqrt((double)u));
       auto [p, ci] = run_experiment<GC, N>(fc, sc, *csv_logger);
-      if (B > A)
-        p = 100.0 - p;
       csv_logger->info("{:.4f},{:.4f},{:.4f}", (double)u, p, ci);
     }
   }

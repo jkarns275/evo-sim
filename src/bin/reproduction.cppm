@@ -39,7 +39,7 @@ int main(int argc, char **argv) {
   const int NUMBER_GENOMES = 1000;
 
   const int NUMBER_THREADS = 10;
-  const int NUMBER_RUNS = 1'000'00;
+  const int NUMBER_RUNS = 1'000'000;
 
   const InitType INIT_TYPE = init_type::Simulated{};
   spdlog::info("-------------------------------------------");
@@ -50,7 +50,7 @@ int main(int argc, char **argv) {
     double A = 10.0;
     double B = 15.0;
 
-    auto csv_logger = spdlog::basic_logger_st("repro_flat_fitness", "repro_flat_fitness.csv", true);
+    auto csv_logger = spdlog::basic_logger_st("repro_flat_fitness", "results/repro_flat_fitness.csv", true);
     csv_logger->set_pattern("%v");
     csv_logger->info("x0,x1,Duration");
 
@@ -77,7 +77,7 @@ int main(int argc, char **argv) {
     double A = 100.0;
     double B = 100.0;
 
-    auto csv_logger = spdlog::basic_logger_st("repro_wall_clock_time_seq", "repro_wall_clock_seq.csv", true);
+    auto csv_logger = spdlog::basic_logger_st("repro_wall_clock_time_seq", "results/repro_wall_clock_seq.csv", true);
     csv_logger->set_pattern("%v");
     csv_logger->info("x0,x1,Start,Duration");
 
@@ -96,7 +96,7 @@ int main(int argc, char **argv) {
   spdlog::info("Reproducibility Experiments: A = B");
   spdlog::info("-------------------------------------------");
   {
-    auto csv_logger = spdlog::basic_logger_st("repro_results_a_eq_b", "repro_a_eq_b.csv", true);
+    auto csv_logger = spdlog::basic_logger_st("repro_results_a_eq_b", "results/repro_a_eq_b.csv", true);
     csv_logger->set_pattern("%v");
     csv_logger->info("Experiment Name,Converged Percentage,95% CI");
 
@@ -131,7 +131,7 @@ int main(int argc, char **argv) {
   spdlog::info("Reproducibility Experiments: B = 1.5A");
   spdlog::info("-------------------------------------------");
   {
-    auto csv_logger = spdlog::basic_logger_st("repro_results_b_gt_a", "repro_b_gt_a.csv", true);
+    auto csv_logger = spdlog::basic_logger_st("repro_results_b_gt_a", "results/repro_b_gt_a.csv", true);
     csv_logger->set_pattern("%v");
     csv_logger->info("Experiment Name,Converged Percentage,95% CI");
 
@@ -166,7 +166,7 @@ int main(int argc, char **argv) {
   spdlog::info("Extended Experiments: A = B, no crossover");
   spdlog::info("-------------------------------------------");
   {
-    auto csv_logger = spdlog::basic_logger_st("repro_results_a_eq_b_no_co", "repro_a_eq_b_no_co.csv", true);
+    auto csv_logger = spdlog::basic_logger_st("repro_results_a_eq_b_no_co", "results/repro_a_eq_b_no_co.csv", true);
     csv_logger->set_pattern("%v");
     csv_logger->info("Experiment Name,Converged Percentage,95% CI");
 
@@ -201,7 +201,7 @@ int main(int argc, char **argv) {
   spdlog::info("Extended Experiments: B = 1.5A, no crossover");
   spdlog::info("-------------------------------------------");
   {
-    auto csv_logger = spdlog::basic_logger_st("repro_results_b_gt_a_no_co", "repro_b_gt_a_no_co.csv", true);
+    auto csv_logger = spdlog::basic_logger_st("repro_results_b_gt_a_no_co", "results/repro_b_gt_a_no_co.csv", true);
     csv_logger->set_pattern("%v");
     csv_logger->info("Experiment Name,Converged Percentage,95% CI");
 

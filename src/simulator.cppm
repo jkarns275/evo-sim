@@ -62,6 +62,8 @@ class priority_queue : public std::priority_queue<_Tp, _Container, _Compare> {
 public:
   _Container::const_iterator cbegin() const noexcept { return this->c.cbegin(); }
   _Container::const_iterator cend() const noexcept { return this->c.cend(); }
+
+  _Tp &operator[](const size_t index) { return this->c[index]; }
 };
 
 /// Evolutionary algorithm simulation for some quasi-genome Ty.
@@ -148,20 +150,20 @@ struct Simulation {
     }
   }
 
-  Genome breed() {
+  virtual Genome breed() {
     size_t n_genomes = population.size() + (use_sweet ? pending_evaluation.size() : 0);
 
     // Randomly select a parent genome uniformly.
     size_t parent0_index = std::uniform_int_distribution<size_t>(0, n_genomes - 1)(generator);
     const Genome &parent0 = parent0_index < population.size() ? population[parent0_index]
-                                                              : population[parent0_index - pending_evaluation.size()];
+                                                              : pending_evaluation[parent0_index - population.size()];
 
     size_t parent1_index;
     do {
       parent1_index = std::uniform_int_distribution<size_t>(0, n_genomes - 1)(generator);
     } while (parent1_index == parent0_index);
-    const Genome &parent1 = parent0_index < population.size() ? population[parent1_index]
-                                                              : population[parent1_index - pending_evaluation.size()];
+    const Genome &parent1 = parent1_index < population.size() ? population[parent1_index]
+                                                              : pending_evaluation[parent1_index - population.size()];
     // Breed a child
     Genome child = Crossover()(parent0, parent1, generator);
 
@@ -172,7 +174,7 @@ struct Simulation {
   }
 
   void reproduce(double current_time) {
-    Genome child = breed();
+    Genome child = this->breed();
 
     // Set that child's finish time to be equal to the parents finish time added to its own evaluation time.
     // spdlog::info("Time value = {}", time_value_fn(child));
@@ -189,7 +191,7 @@ struct Simulation {
   /// by removing a genome from the pending evaluation queue, then inserting that genome in the population using
   /// tournamant selection. Subsequently, a new random genome is selected and mutated -- this child genome is
   /// subsequently added into the evaluation queue.
-  virtual void step() {
+  void step() {
     assert(pending_evaluation.size() == np);
 
     // Get most recently evaluated genome, and insert it if it passes tournamant selection.
@@ -352,7 +354,7 @@ struct SimulationWithLogging : public Simulation<GC, N> {
     this->pending_evaluation.emplace(std::move(child));
   }
 
-  void step() override {
+  void step() {
     assert(this->pending_evaluation.size() == np);
 
     // Get most recently evaluated genome, and insert it if it passes tournamant selection.
@@ -367,4 +369,48 @@ struct SimulationWithLogging : public Simulation<GC, N> {
     this->step_count += 1;
   }
 };
+
+template <typename GC, unsigned N>
+  requires std::derived_from<GC, GenomeConfig<N>> && std::derived_from<typename GC::Genome, GenomeWithCounter<N>>
+struct SimulationWithCounter : public Simulation<GC, N> {
+  using typename Simulation<GC, N>::Genome;
+  using typename Simulation<GC, N>::Mutation;
+  using typename Simulation<GC, N>::Crossover;
+
+  SimulationWithCounter(uint32_t pop_size, uint32_t np, int64_t max_steps, bool use_sweet,
+                        FitnessFunction<N> *fitness_value_fn, FitnessFunction<N> *time_value_fn,
+                        std::function<typename Simulation<GC, N>::Genome(Rng &, FitnessFunction<N> &)> factory,
+                        InitType init_type = init_type::SynchronousGenerations{0})
+      : Simulation<GC, N>(pop_size, np, max_steps, use_sweet, fitness_value_fn, time_value_fn, factory, init_type) {}
+
+  std::vector<Genome *> cache;
+  Genome breed() override {
+    size_t n_genomes = this->population.size() + (this->use_sweet ? this->pending_evaluation.size() : 0);
+    cache.assign(n_genomes, nullptr);
+
+    for (size_t i = 0; i < this->population.size(); i++)
+      cache[i] = &this->population[i];
+
+    for (size_t i = this->population.size(); i < n_genomes; i++)
+      cache[i] = &this->pending_evaluation[i - this->population.size()];
+
+    std::nth_element(cache.begin(), cache.begin() + 1, cache.end(), typename Genome::SortByCounter());
+
+    // Randomly select a parent genome uniformly.
+    Genome &parent0 = *cache[0];
+    parent0.inc();
+    Genome &parent1 = *cache[1];
+    parent1.inc();
+
+    // Breed a child
+    Genome child = Crossover()(parent0, parent1, this->generator);
+
+    // Mutate that child
+    child = Mutation()(child, this->generator);
+    child.counter = (parent0.counter + parent1.counter) / 2;
+
+    return child;
+  }
+};
+
 }; // namespace evosim

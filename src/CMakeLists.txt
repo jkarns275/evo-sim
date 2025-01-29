@@ -24,6 +24,10 @@ target_sources(scatter PUBLIC FILE_SET cxx_modules TYPE CXX_MODULES FILES bin/sc
 target_link_libraries(scatter PRIVATE ${EVOSIM_LINK_LIBS})
 target_link_directories(scatter PRIVATE ${EVOSIM_LINK_DIRS})
 
+add_executable(mitigation)
+target_sources(mitigation PUBLIC FILE_SET cxx_modules TYPE CXX_MODULES FILES bin/mitigation.cppm)
+target_link_libraries(mitigation PRIVATE ${EVOSIM_LINK_LIBS})
+target_link_directories(mitigation PRIVATE ${EVOSIM_LINK_DIRS})
 # add_executable(repro)
 # target_sources(repro PUBLIC FILE_SET cxx_modules TYPE CXX_MODULES FILES bin/reproduction.cppm)
 # target_link_libraries(repro PRIVATE ${EVOSIM_LINK_LIBS})

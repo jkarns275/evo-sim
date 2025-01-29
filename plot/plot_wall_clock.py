@@ -4,6 +4,8 @@ import matplotlib
 from matplotlib.backends.backend_pgf import FigureCanvasPgf
 matplotlib.backend_bases.register_backend("pdf", FigureCanvasPgf)
 
+from plot_config import *
+
 df = pd.read_csv('build/repro_wall_clock_seq.csv')
 
 fig, ax = plt.subplots(figsize=(8, 6))

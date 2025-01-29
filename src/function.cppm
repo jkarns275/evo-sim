@@ -5,6 +5,7 @@ module;
 #include <algorithm>
 #include <cmath>
 #include <format>
+#include <numbers>
 #include <utility>
 
 export module evosim:function;
@@ -72,8 +73,9 @@ template <unsigned N> struct ScottDeJongBasins : public FitnessFunction<N> {
   std::pair<double, double> domain() const override { return {-10.0, 10.0}; }
 
   bool converged(const std::array<double, N> &x) override {
-    std::array<double, N> go = this->global_optimum();
-    std::array<double, N> lo = array_of<N>(-go[0]);
+    // Just see if it converged to A.
+    std::array<double, N> go = array_of<N>(2 * sigma);
+    std::array<double, N> lo = array_of<N>(-2 * sigma);
     return distance(go, x) < distance(lo, x);
   }
 
@@ -85,12 +87,18 @@ template <unsigned N> struct Schwefel : public FitnessFunction<N> {
     double total = 0.0;
 
     for (auto xi : x)
-      total += 50.0 * xi * std::sin(std::sqrt(std::abs(50.0 * xi)));
+      total += 50.0 * xi * std::sin(std::sqrt(std::abs(50.0 * xi))) * (1.0 / N);
 
-    return 418.9829 * (double)N - total;
+    auto value = (418.9829 - total) / N;
+    return value;
   }
 
-  std::array<double, N> global_optimum() const override { return array_of<N>(-420.9687 / 50); }
+  bool converged(const std::array<double, N> &x) override {
+    auto min = global_optimum();
+    return distance(min, x) < std::sqrt(4 * 10);
+  }
+
+  std::array<double, N> global_optimum() const override { return array_of<N>(420.9687 / 50); }
 
   std::pair<double, double> domain() const override { return {-10.0, 10.0}; }
 
@@ -100,11 +108,15 @@ template <unsigned N> struct Schwefel : public FitnessFunction<N> {
 template <unsigned N> struct Rosenbrock : public FitnessFunction<N> {
   double operator()(const std::array<double, N> &x) const override {
     double sum = 0.0;
+    std::array<double, N> scaled_x;
+    for (size_t i = 0; i < N; i++)
+      scaled_x[i] = x[i] / 10.0 * 2.048;
+
     for (int i = 0; i < N - 1; i++) {
-      double left = (x[i + 1] - x[i] * x[i]);
+      double left = (scaled_x[i + 1] - scaled_x[i] * scaled_x[i]);
       left *= left * 100.0;
 
-      double right = 1.0 - x[i];
+      double right = 1.0 - scaled_x[i];
       right *= right;
 
       sum += left + right;
@@ -115,9 +127,85 @@ template <unsigned N> struct Rosenbrock : public FitnessFunction<N> {
 
   std::array<double, N> global_optimum() const override { return array_of<N>(1.0); }
 
-  std::pair<double, double> domain() const override { return {-2.0, 2.0}; }
+  bool converged(const std::array<double, N> &x) override {
+    auto opt = global_optimum();
+    return distance(x, opt) < 0.5;
+  }
+
+  std::pair<double, double> domain() const override { return {-10.0, 10.0}; }
 
   std::string to_string() const override { return std::format("Rosenbrock()"); }
+};
+
+template <unsigned N> struct Ackley : public FitnessFunction<N> {
+  const std::array<double, N> center;
+  const bool inverse;
+
+  Ackley(std::array<double, N> center, bool inverse = false) : center(center), inverse(inverse) {}
+
+  double operator()(const std::array<double, N> &x) const override {
+    const double a = 20, b = 0.2, c = 2 * std::numbers::pi;
+
+    double lsum = 0.0;
+    double rsum = 0.0;
+    for (size_t i = 0; i < N; i++) {
+      double shifted = ((x[i] - center[i]) / 10) * 32.768;
+      lsum += shifted * shifted;
+      rsum += std::cos(c * shifted);
+    }
+    lsum /= (double)N;
+    rsum /= (double)N;
+
+    lsum = -b * std::sqrt(lsum);
+
+    double value = -a * std::exp(lsum) - std::exp(rsum) + a + std::exp(1);
+    if (inverse)
+      return std::max(1.0, 24.0 - value);
+    else
+      return std::max(0.01, value);
+  }
+
+  std::array<double, N> global_optimum() const override { return center; }
+
+  bool converged(const std::array<double, N> &x) override {
+    auto opt = global_optimum();
+    return distance(x, opt) < 0.05;
+  }
+
+  std::pair<double, double> domain() const override { return {-10.0, 10.0}; }
+
+  std::string to_string() const override { return std::format("Ackley()"); }
+};
+
+template <unsigned N> struct Spherical : public FitnessFunction<N> {
+  const std::array<double, N> center;
+  const bool inverse;
+
+  Spherical(std::array<double, N> center, bool inverse = false) : center(center), inverse(inverse) {}
+
+  double operator()(const std::array<double, N> &x) const override {
+    double sum = 0.0;
+    for (size_t i = 0; i < N; i++) {
+      double shifted = x[i] - center[i];
+      sum += shifted * shifted;
+    }
+
+    if (inverse)
+      return 1.0 / sum;
+    else
+      return sum;
+  }
+
+  std::array<double, N> global_optimum() const override { return center; }
+
+  bool converged(const std::array<double, N> &x) override {
+    auto opt = global_optimum();
+    return distance(x, opt) < 0.05;
+  }
+
+  std::pair<double, double> domain() const override { return {-10.0, 10.0}; }
+
+  std::string to_string() const override { return std::format("Spherical()"); }
 };
 
 template <unsigned N> struct SphericalGaussian : public FitnessFunction<N> {

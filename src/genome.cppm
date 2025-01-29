@@ -31,8 +31,13 @@ template <unsigned N> struct Genome {
     time_finished = time_value_fn(x);
   }
 
-  Genome(const Genome<N> &other) : x(other.x), time_finished(other.time_finished), fitness(other.fitness) {}
-  Genome(Genome<N> &&other) : x(other.x), time_finished(other.time_finished), fitness(other.fitness) {}
+protected:
+  Genome(const std::array<double, N> &x, const double time_finished, const std::optional<double> fitness)
+      : x(x), time_finished(time_finished), fitness(fitness) {}
+
+public:
+  Genome(const Genome<N> &other) : Genome(other.x, other.time_finished, other.fitness) {}
+  Genome(Genome<N> &&other) : Genome(other.x, other.time_finished, other.fitness) {}
 
   Genome<N> &operator=(const Genome<N> &other) {
     x = other.x;
@@ -77,6 +82,34 @@ template <unsigned N> struct Genome {
   }
 };
 
+template <unsigned N> struct GenomeWithCounter : public Genome<N> {
+  unsigned int counter = 0;
+
+  template <ProbabilityDistribution Dist>
+  GenomeWithCounter(Rng &rng, const FitnessFunction<N> &time_value_fn, Dist d) : Genome<N>(rng, time_value_fn, d) {}
+  GenomeWithCounter(const GenomeWithCounter<N> &other)
+      : Genome<N>(other.x, other.time_finished, other.fitness), counter(other.counter) {}
+  GenomeWithCounter(GenomeWithCounter<N> &&other)
+      : Genome<N>(other.x, other.time_finished, other.fitness), counter(other.counter) {}
+
+  GenomeWithCounter<N> &operator=(const GenomeWithCounter<N> &other) {
+    this->x = other.x;
+    this->time_finished = other.time_finished;
+    this->fitness = other.fitness;
+    counter = other.counter;
+
+    return *this;
+  }
+
+  void inc() { counter += 1; }
+
+  struct SortByCounter {
+    bool operator()(const GenomeWithCounter<N> *left, const GenomeWithCounter<N> *right) const {
+      return left->counter < right->counter;
+    }
+  };
+};
+
 /// Template class for an ordering of TimedEval objects. This exists as a template to avoid dynamic dispatch when such
 /// objects are compared.
 ///
@@ -118,7 +151,6 @@ struct GaussianMutation : Mutation<G, N> {
     for (int i = 0; i < N; i++)
       if (std::generate_canonical<float, 32>(generator) < p) {
         child.x[i] += dist(generator);
-        child.x[i] = std::max(std::min(child.x[i], 10.0), -10.0);
       }
 
     return child;
@@ -138,6 +170,21 @@ struct TwoPointCrossover : Crossover<G, N> {
     size_t end = end_dist(generator);
 
     std::copy(p1.x.begin() + start, p1.x.begin() + end, child.x.begin() + start);
+
+    return child;
+  }
+};
+
+template <typename G, unsigned N>
+  requires std::derived_from<G, Genome<N>>
+struct LineSearchCrossover : Crossover<G, N> {
+  G operator()(const G &p0, const G &p1, Rng &generator) const override {
+    G child(p0);
+
+    for (size_t i = 0; i < N; i++) {
+      double grad = p0.x[i] - p1.x[i];
+      child.x[i] = p0.x[i] + std::uniform_real_distribution<double>(-0.5, 1.5)(generator) * grad;
+    }
 
     return child;
   }
@@ -176,6 +223,14 @@ template <unsigned N> struct SDBGenomeConfig : public GenomeConfig<N> {
   typedef GaussianMutation<Genome, N> Mutation;
   typedef TwoPointCrossover<Genome, N> Crossover;
   // typedef NopCrossover<Genome, N> Crossover;
+};
+
+template <unsigned N> struct CounterGenomeConfig : public GenomeConfig<N> {
+  const std::string name = "Genome with Counters; Gaussian Mutation; Two-Point Crossover";
+
+  typedef GenomeWithCounter<N> Genome;
+  typedef GaussianMutation<Genome, N> Mutation;
+  typedef TwoPointCrossover<Genome, N> Crossover;
 };
 
 }; // namespace evosim
