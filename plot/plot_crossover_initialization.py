@@ -44,7 +44,7 @@ def plot(with_co, without_co, title, output):
         y_upper1,
         color="blue",
         alpha=0.2,
-        label="w/ Crossove 95% CI"
+        label="w/ Crossover 95% CI"
     )
     
     plt.plot(x_data1, y_upper1, color="blue", linestyle="--", linewidth=1)
