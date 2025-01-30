@@ -48,3 +48,8 @@ If you have multiple compilers installed, you may have to point cmake to the cor
 ```
 cmake -DCMAKE_CXX_COMPILER=/opt/homebrew/opt/llvm/bin/clang++ -DCMAKE_CXX_STANDARD_INCLUDE_DIRECTORIES=/opt/homebrew/include -GNinja -DCMAKE_BUILD_TYPE=Release ..
 ```
+
+Then, just run `ninja` to build:
+```
+ninja
+```
