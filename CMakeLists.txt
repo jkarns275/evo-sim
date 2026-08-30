@@ -8,18 +8,25 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 message (${CMAKE_CXX_COMPILER})
 
+# Suppress dev warning for FindBoost removal in CMake 3.30+; we use Boost CONFIG mode
+if(POLICY CMP0167)
+  cmake_policy(SET CMP0167 NEW)
+endif()
+
 # Set the C++ standard
 add_compile_options(-g)
 add_compile_options(-Wall)
 add_compile_options(-Wno-deprecated-declarations)
+add_compile_options(-Wno-main-attached-to-named-module)
 add_compile_options(-fdiagnostics-color=always)
 add_compile_options(-v)
 
 set(CMAKE_CXX_FLAGS_DEBUG "-O0 -g -march=native -mtune=native")
 set(CMAKE_CXX_FLAGS_RELEASE "-O3 -DNDEBUG")
 
+find_package(fmt CONFIG REQUIRED)
 find_package(spdlog CONFIG REQUIRED)
-find_package(Boost REQUIRED COMPONENTS system)
+find_package(Boost REQUIRED CONFIG)
 
 # Add the `src` directory
 add_subdirectory(src)

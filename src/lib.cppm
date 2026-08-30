@@ -11,20 +11,34 @@ module;
 #include <vector>
 
 export module evosim;
-export import :function;
-export import :simulator;
-export import :genome;
-export import :util;
+export import :core;
+export import :mwc192;
+export import :fast_uniform;
+export import :ziggurat;
+export import :rng_util;
+export import :concepts;
+export import :genome_base;
+export import :genome_counter;
+export import :genome_config;
+export import :traits;
+export import :fitness;
+export import :objective;
+export import :time_model;
+export import :operators;
+export import :population;
+export import :queue;
+export import :init;
+export import :simulation;
 export import :analysis;
 
 export namespace evosim {
 
 struct SimulationConfig {
   int pop_size, np, ngenomes;
-  InitType init_type;
+  init_policy::InitType init_type;
   bool use_sweet;
 
-  SimulationConfig(int pop_size, int np, int ngenomes, InitType init_type, bool use_sweet)
+  SimulationConfig(int pop_size, int np, int ngenomes, init_policy::InitType init_type, bool use_sweet)
       : pop_size(pop_size), np(np), ngenomes(ngenomes), init_type(init_type), use_sweet(use_sweet) {}
 };
 
@@ -54,7 +68,7 @@ std::pair<double, double> run_experiment(ExpConfig<N, G> fc, SimulationConfig sc
       s.run();
 
       // std::array<double, N> best = fc.fitness_eval_fn.global_optimum();
-      sum[t] += *s.population[0].fitness / fc.nruns; // distance(s.population[0].x, best) / fc.nruns;
+      sum[t] += *s.population[0].fitness; // distance(s.population[0].x, best) / fc.nruns;
       bool converged = s.converged_to_global_best();
 
       if (converged)
@@ -80,6 +94,7 @@ std::pair<double, double> run_experiment(ExpConfig<N, G> fc, SimulationConfig sc
   double avg_fitness = 0.0;
   for (int i = 0; i < fc.nthreads; i++)
     avg_fitness += sum[i];
+  avg_fitness /= fc.nruns;
 
   double converged_prop = 100 * (pc / (pc + nc));
   double ci = converged_prop - 100.0 * wilson_confidence(pc, nc, 0.95);

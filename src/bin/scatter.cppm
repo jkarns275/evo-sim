@@ -1,4 +1,5 @@
 module;
+#include <format>
 
 #include <boost/math/distributions/normal.hpp>
 #include <spdlog/sinks/basic_file_sink.h>
@@ -17,20 +18,18 @@ using namespace evosim;
 
 const unsigned N = 8;
 
-/// This binary runs a series of experiments that represent a superset of the experiments run in "Evaluation-Time Bias
-/// in Asynchronous Evolutionary Algorithms" by Eric O. Scott and Kenneth A. De Jong.
+/// This binary runs a series of experiments that represent a superset of the
+/// experiments run in "Evaluation-Time Bias in Asynchronous Evolutionary
+/// Algorithms" by Eric O. Scott and Kenneth A. De Jong.
 ///
-/// There are some additional figures / visualizations in the paper that are not produced by this script.
-int main(int argc, char **argv) {
-
+/// There are some additional figures / visualizations in the paper that are not
+/// produced by this script.
+int main(int argc, char** argv) {
   initialize_logger();
-
-  const int N_REPEATS = 100000;
-
   // Experiment 1: Converging to Fast Optimum on Two-Basin Objective
   //
-  // These experiments will only be run on the Scott-DeJong basin function as it depends on having two identical local
-  // minima.
+  // These experiments will only be run on the Scott-DeJong basin function as it
+  // depends on having two identical local minima.
   //
   // Groups:
   // - Constant-Eval Time
@@ -54,25 +53,31 @@ int main(int argc, char **argv) {
   {
     const double A = 10.0;
     const double B = A;
-
-    const InitType INIT_TYPE = init_type::Simulated{};
-
-    std::vector<std::pair<std::string, std::unique_ptr<FitnessFunction<N>>>> fitness_functions;
+    std::vector<std::pair<std::string, std::unique_ptr<FitnessFunction<N>>>>
+        fitness_functions;
 
     fitness_functions.push_back(
-        {"Scott-DeJong Basins", std::unique_ptr<FitnessFunction<N>>(new ScottDeJongBasins<N>(B, A))});
+        {"Scott-DeJong Basins",
+         std::unique_ptr<FitnessFunction<N>>(new ScottDeJongBasins<N>(B, A))});
 
-    for (auto &[name, fitness] : fitness_functions) {
+    for (auto& [name, fitness] : fitness_functions) {
       std::string csv_name(std::format("sph_at_min_{}", name));
-      auto csv_logger = spdlog::basic_logger_st("experiment_output_csv", "results.csv", true);
+      auto csv_logger =
+          spdlog::basic_logger_st("experiment_output_csv", "results.csv", true);
       csv_logger->set_pattern("%v");
       csv_logger->info("Converged Percentage, 95% CI, Distance from Minimum");
 
-      SimulationConfig sc{POP_SIZE, NUMBER_SIMULATED_PROCESSORS, NUMBER_GENOMES, INIT_TYPE, false};
+      SimulationConfig sc{
+          POP_SIZE,
+          NUMBER_SIMULATED_PROCESSORS,
+          NUMBER_GENOMES,
+          init_policy::Simulated{},
+          false};
 
       // Genomes are initialized at 0^N at the start of the search.
-      auto factory = [=](Rng &rng, FitnessFunction<N> &time_value) {
-        return Genome(rng, time_value, std::normal_distribution<double>{0.0, 1.0});
+      auto factory = [=](Rng& rng, auto& time_value) {
+        return Genome<N>(
+            rng, time_value, std::normal_distribution<double>{0.0, 1.0});
       };
 
       const int N_DATAPOINTS = 100;
@@ -100,21 +105,28 @@ int main(int argc, char **argv) {
 
           ExpConfig<N> fc{NUMBER_THREADS, NUMBER_RUNS, *fitness, time, factory};
 
-          auto [prop, ci] = run_experiment<SDBGenomeConfig<N>, N>(fc, sc, *csv_logger);
+          auto [prop, ci] =
+              run_experiment<SDBGenomeConfig<N>, N>(fc, sc, *csv_logger);
           // rows.push_back(std::format("{:.4f}, {:.4f}, {:.4f}", prop, ci, ));
-          rows.push_back(std::format("{:.4f}, {:.4f}, {:.4f}", prop, ci, distance(fitness_center, center)));
-          // rows.push_back(std::format("{:.4f}, {:.4f}, {:.4f}", prop, ci, euclidean<N>(offset)));
+          rows.push_back(
+              std::format(
+                  "{:.4f}, {:.4f}, {:.4f}",
+                  prop,
+                  ci,
+                  distance(fitness_center, center)));
+          // rows.push_back(std::format("{:.4f}, {:.4f}, {:.4f}", prop, ci,
+          // euclidean<N>(offset)));
         }
 
         std::lock_guard<std::mutex> guard(mutex);
-        for (std::string &row : rows)
+        for (std::string& row : rows)
           csv_logger->info(row);
       };
 
       for (int i = 0; i < N_OUTER_THREADS; i++)
         threads.emplace_back(thread_fn);
 
-      for (auto &thread : threads)
+      for (auto& thread : threads)
         thread.join();
     }
   }

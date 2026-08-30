@@ -7,29 +7,32 @@ module;
 #include <format>
 #include <numbers>
 #include <utility>
+#include <string_view>
 
-export module evosim:function;
-import :util;
+export module evosim:fitness;
+import :core;
 
 export namespace evosim {
 
 template <unsigned N> struct FitnessFunction {
+  static constexpr std::string_view name = "FitnessFunction";
   virtual ~FitnessFunction() {}
 
   virtual double operator()(const std::array<double, N> &x) const = 0;
   virtual std::array<double, N> global_optimum() const = 0;
   virtual std::pair<double, double> domain() const = 0;
 
-  virtual bool converged(const std::array<double, N> &x) {
+  virtual bool converged(const std::array<double, N> &x) const {
     std::array<double, N> go = this->global_optimum();
     std::array<double, N> lo = {-go[0]};
-    return distance(go, x) < distance(lo, x);
+    return distance_squared(go, x) < distance_squared(lo, x);
   }
 
   virtual std::string to_string() const = 0;
 };
 
 template <unsigned N> struct Flat : public FitnessFunction<N> {
+  static constexpr std::string_view name = "Flat";
 
   Flat() {}
 
@@ -39,16 +42,17 @@ template <unsigned N> struct Flat : public FitnessFunction<N> {
 
   std::pair<double, double> domain() const override { return {-10.0, 10.0}; }
 
-  bool converged(const std::array<double, N> &x) override {
+  bool converged(const std::array<double, N> &x) const override {
     std::array<double, N> go = this->global_optimum();
     std::array<double, N> lo = {-go[0]};
-    return distance(go, x) < distance(lo, x);
+    return distance_squared(go, x) < distance_squared(lo, x);
   }
 
   std::string to_string() const override { return "Const(1)"; }
 };
 
 template <unsigned N> struct ScottDeJongBasins : public FitnessFunction<N> {
+  static constexpr std::string_view name = "ScottDeJongBasins";
   double A, B, sigma;
 
   ScottDeJongBasins(double A, double B, double sigma = 2.5) : A(A), B(B), sigma(sigma) {}
@@ -72,17 +76,18 @@ template <unsigned N> struct ScottDeJongBasins : public FitnessFunction<N> {
 
   std::pair<double, double> domain() const override { return {-10.0, 10.0}; }
 
-  bool converged(const std::array<double, N> &x) override {
+  bool converged(const std::array<double, N> &x) const override {
     // Just see if it converged to A.
     std::array<double, N> go = array_of<N>(2 * sigma);
     std::array<double, N> lo = array_of<N>(-2 * sigma);
-    return distance(go, x) < distance(lo, x);
+    return distance_squared(go, x) < distance_squared(lo, x);
   }
 
   std::string to_string() const override { return std::format("Scott-DeJong( {:.2f}; {:.2f} )", A, B); }
 };
 
 template <unsigned N> struct Schwefel : public FitnessFunction<N> {
+  static constexpr std::string_view name = "Schwefel";
   double operator()(const std::array<double, N> &x) const override {
     double total = 0.0;
 
@@ -93,9 +98,9 @@ template <unsigned N> struct Schwefel : public FitnessFunction<N> {
     return value;
   }
 
-  bool converged(const std::array<double, N> &x) override {
+  bool converged(const std::array<double, N> &x) const override {
     auto min = global_optimum();
-    return distance(min, x) < std::sqrt(4 * 10);
+    return distance_squared(min, x) < 4 * 10;
   }
 
   std::array<double, N> global_optimum() const override { return array_of<N>(420.9687 / 50); }
@@ -106,6 +111,7 @@ template <unsigned N> struct Schwefel : public FitnessFunction<N> {
 };
 
 template <unsigned N> struct Rosenbrock : public FitnessFunction<N> {
+  static constexpr std::string_view name = "Rosenbrock";
   double operator()(const std::array<double, N> &x) const override {
     double sum = 0.0;
     std::array<double, N> scaled_x;
@@ -127,7 +133,7 @@ template <unsigned N> struct Rosenbrock : public FitnessFunction<N> {
 
   std::array<double, N> global_optimum() const override { return array_of<N>(1.0); }
 
-  bool converged(const std::array<double, N> &x) override {
+  bool converged(const std::array<double, N> &x) const override {
     auto opt = global_optimum();
     return distance(x, opt) < 0.5;
   }
@@ -138,6 +144,7 @@ template <unsigned N> struct Rosenbrock : public FitnessFunction<N> {
 };
 
 template <unsigned N> struct Ackley : public FitnessFunction<N> {
+  static constexpr std::string_view name = "Ackley";
   const std::array<double, N> center;
   const bool inverse;
 
@@ -167,7 +174,7 @@ template <unsigned N> struct Ackley : public FitnessFunction<N> {
 
   std::array<double, N> global_optimum() const override { return center; }
 
-  bool converged(const std::array<double, N> &x) override {
+  bool converged(const std::array<double, N> &x) const override {
     auto opt = global_optimum();
     return distance(x, opt) < 0.05;
   }
@@ -178,6 +185,7 @@ template <unsigned N> struct Ackley : public FitnessFunction<N> {
 };
 
 template <unsigned N> struct Spherical : public FitnessFunction<N> {
+  static constexpr std::string_view name = "Spherical";
   const std::array<double, N> center;
   const bool inverse;
 
@@ -198,7 +206,7 @@ template <unsigned N> struct Spherical : public FitnessFunction<N> {
 
   std::array<double, N> global_optimum() const override { return center; }
 
-  bool converged(const std::array<double, N> &x) override {
+  bool converged(const std::array<double, N> &x) const override {
     auto opt = global_optimum();
     return distance(x, opt) < 0.05;
   }
@@ -209,6 +217,7 @@ template <unsigned N> struct Spherical : public FitnessFunction<N> {
 };
 
 template <unsigned N> struct SphericalGaussian : public FitnessFunction<N> {
+  static constexpr std::string_view name = "SphericalGaussian";
   std::array<boost::math::normal_distribution<double>, N> dist;
 
   SphericalGaussian(std::array<double, N> mu, double sigma = 1.0) {
@@ -241,6 +250,7 @@ template <unsigned N> struct SphericalGaussian : public FitnessFunction<N> {
 };
 
 template <unsigned N> struct InvSphericalGaussian : public FitnessFunction<N> {
+  static constexpr std::string_view name = "InvSphericalGaussian";
   boost::math::normal_distribution<double> dist;
   const double max_value;
 
